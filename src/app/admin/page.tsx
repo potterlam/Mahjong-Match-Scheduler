@@ -30,15 +30,26 @@ interface FoodOption {
   isActive: boolean;
 }
 
+interface ConflictPair {
+  id: string;
+  reason: string;
+  userA: { id: string; name: string };
+  userB: { id: string; name: string };
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [tab, setTab] = useState<"registrations" | "users" | "foods">("registrations");
+  const [tab, setTab] = useState<"registrations" | "users" | "foods" | "conflicts">("registrations");
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [foods, setFoods] = useState<FoodOption[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictPair[]>([]);
   const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [newFoodName, setNewFoodName] = useState("");
+  const [conflictUserA, setConflictUserA] = useState("");
+  const [conflictUserB, setConflictUserB] = useState("");
+  const [conflictReason, setConflictReason] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -60,6 +71,13 @@ export default function AdminPage() {
       fetch("/api/admin/foods")
         .then((r) => r.json())
         .then((d) => setFoods(Array.isArray(d) ? d : []));
+    } else if (tab === "conflicts") {
+      fetch("/api/admin/users")
+        .then((r) => r.json())
+        .then((d) => setUsers(Array.isArray(d) ? d : []));
+      fetch("/api/admin/conflicts")
+        .then((r) => r.json())
+        .then((d) => setConflicts(Array.isArray(d) ? d : []));
     }
   }, [tab, filterDate]);
 
@@ -98,6 +116,30 @@ export default function AdminPage() {
     setNewFoodName("");
   };
 
+  const addConflict = async () => {
+    if (!conflictUserA || !conflictUserB) return;
+    const res = await fetch("/api/admin/conflicts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userAId: conflictUserA, userBId: conflictUserB, reason: conflictReason }),
+    });
+    if (res.ok) {
+      const conflict = await res.json();
+      setConflicts((prev) => [...prev, conflict]);
+      setConflictUserA("");
+      setConflictUserB("");
+      setConflictReason("");
+    }
+  };
+
+  const removeConflict = async (id: string) => {
+    if (!confirm("確定要刪除此衝突關係嗎？")) return;
+    const res = await fetch(`/api/admin/conflicts?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setConflicts((prev) => prev.filter((c) => c.id !== id));
+    }
+  };
+
   if (status === "loading") {
     return <div className="text-center py-20 text-2xl">載入中...</div>;
   }
@@ -114,6 +156,7 @@ export default function AdminPage() {
           { key: "registrations" as const, label: "📋 報名記錄" },
           { key: "users" as const, label: "👥 用戶管理" },
           { key: "foods" as const, label: "🍜 食物管理" },
+          { key: "conflicts" as const, label: "🚫 衝突管理" },
         ].map((t) => (
           <button
             key={t.key}
@@ -147,12 +190,60 @@ export default function AdminPage() {
           ) : (
             <div className="space-y-3">
               {registrations.map((reg) => (
-                <div key={reg.id} className="bg-white rounded-lg shadow p-4 border-2 border-gray-200">
+                <div key={reg.id} className={`bg-white rounded-lg shadow p-4 border-2 ${
+                  (reg as any).status === "pending" ? "border-yellow-400" : (reg as any).status === "rejected" ? "border-red-400" : "border-gray-200"
+                }`}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xl font-bold">{reg.user.name}</span>
-                    <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">
-                      {reg.timeSlot.label}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl font-bold">{reg.user.name}</span>
+                      {(reg as any).status === "pending" && (
+                        <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-sm font-bold">⏳ 待審批</span>
+                      )}
+                      {(reg as any).status === "approved" && (
+                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-bold">✅ 已批准</span>
+                      )}
+                      {(reg as any).status === "rejected" && (
+                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-sm font-bold">❌ 已拒絕</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">
+                        {reg.timeSlot.label}
+                      </span>
+                      {(reg as any).status === "pending" && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              await fetch("/api/admin/registrations", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: reg.id, status: "approved" }),
+                              });
+                              setTab("registrations");
+                              const res = await fetch(`/api/admin/registrations?date=${filterDate}`);
+                              setRegistrations(await res.json());
+                            }}
+                            className="bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-bold hover:bg-green-700"
+                          >
+                            ✅ 批准
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await fetch("/api/admin/registrations", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: reg.id, status: "rejected" }),
+                              });
+                              const res = await fetch(`/api/admin/registrations?date=${filterDate}`);
+                              setRegistrations(await res.json());
+                            }}
+                            className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-bold hover:bg-red-600"
+                          >
+                            ❌ 拒絕
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="text-gray-600">
                     📧 {reg.user.email} · 📍 {reg.location.name}
@@ -238,6 +329,85 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Conflicts */}
+      {tab === "conflicts" && (
+        <div>
+          <div className="bg-white rounded-lg shadow p-6 border-2 border-gray-200 mb-6">
+            <h2 className="text-xl font-bold mb-4">➕ 新增衝突關係</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-lg font-bold mb-1">用戶 A</label>
+                <select
+                  value={conflictUserA}
+                  onChange={(e) => setConflictUserA(e.target.value)}
+                  className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg"
+                >
+                  <option value="">選擇用戶</option>
+                  {users.filter((u) => u.id !== conflictUserB).map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-lg font-bold mb-1">用戶 B</label>
+                <select
+                  value={conflictUserB}
+                  onChange={(e) => setConflictUserB(e.target.value)}
+                  className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg"
+                >
+                  <option value="">選擇用戶</option>
+                  {users.filter((u) => u.id !== conflictUserA).map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-lg font-bold mb-1">原因（可選）</label>
+                <input
+                  type="text"
+                  value={conflictReason}
+                  onChange={(e) => setConflictReason(e.target.value)}
+                  className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg"
+                  placeholder="輸入原因"
+                />
+              </div>
+            </div>
+            <button
+              onClick={addConflict}
+              disabled={!conflictUserA || !conflictUserB}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg text-lg font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🚫 新增衝突
+            </button>
+          </div>
+
+          {conflicts.length === 0 ? (
+            <p className="text-lg text-gray-500">目前沒有設定衝突關係</p>
+          ) : (
+            <div className="space-y-3">
+              {conflicts.map((c) => (
+                <div key={c.id} className="bg-white rounded-lg shadow p-4 border-2 border-red-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-xl font-bold text-red-700">
+                      {c.userA.name} 🚫 {c.userB.name}
+                    </span>
+                    {c.reason && (
+                      <span className="text-gray-500 ml-3">（{c.reason}）</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removeConflict(c.id)}
+                    className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-300"
+                  >
+                    🗑️ 刪除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

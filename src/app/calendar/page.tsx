@@ -10,6 +10,7 @@ interface CalendarRegistration {
   id: string;
   date: string;
   notes: string;
+  status: string;
   timeSlotId: string;
   locationId: string;
   user: { id: string; name: string };
@@ -22,6 +23,7 @@ interface TimeSlot { id: string; label: string }
 interface Location { id: string; name: string }
 interface FoodOption { id: string; name: string }
 interface UserOption { id: string; name: string; email: string }
+interface ConflictPair { id: string; userA: { id: string; name: string }; userB: { id: string; name: string }; reason: string }
 
 export default function CalendarPage() {
   const { data: session, status } = useSession();
@@ -40,6 +42,7 @@ export default function CalendarPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [foodOptions, setFoodOptions] = useState<FoodOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictPair[]>([]);
 
   // Form fields
   const [formSlot, setFormSlot] = useState("");
@@ -67,6 +70,9 @@ export default function CalendarPage() {
     fetch("/api/admin/users")
       .then((r) => r.json())
       .then((data) => setUsers(Array.isArray(data) ? data : []));
+    fetch("/api/admin/conflicts")
+      .then((r) => r.json())
+      .then((data) => setConflicts(Array.isArray(data) ? data : []));
   }, [isAdmin]);
 
   const fetchCalendar = useCallback(async () => {
@@ -190,6 +196,49 @@ export default function CalendarPage() {
     }
   };
 
+  // Approve / Reject
+  const handleApprove = async (regId: string) => {
+    await fetch("/api/admin/registrations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: regId, status: "approved" }),
+    });
+    fetchCalendar();
+  };
+
+  const handleReject = async (regId: string) => {
+    if (!confirm("確定要拒絕此報名嗎？")) return;
+    await fetch("/api/admin/registrations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: regId, status: "rejected" }),
+    });
+    fetchCalendar();
+  };
+
+  // Conflict detection for a given date+slot
+  const getConflictWarnings = (regs: CalendarRegistration[]) => {
+    const warnings: string[] = [];
+    // Group by time slot
+    const bySlot: Record<string, CalendarRegistration[]> = {};
+    for (const r of regs) {
+      if (r.status === "rejected") continue;
+      if (!bySlot[r.timeSlotId]) bySlot[r.timeSlotId] = [];
+      bySlot[r.timeSlotId].push(r);
+    }
+    for (const slotRegs of Object.values(bySlot)) {
+      const userIds = slotRegs.map((r) => r.user.id);
+      for (const c of conflicts) {
+        const aIn = userIds.includes(c.userA.id);
+        const bIn = userIds.includes(c.userB.id);
+        if (aIn && bIn) {
+          warnings.push(`⚠️ ${c.userA.name} 同 ${c.userB.name} 不宜同場${c.reason ? `（${c.reason}）` : ""}`);
+        }
+      }
+    }
+    return warnings;
+  };
+
   if (status === "loading") {
     return <div className="text-center py-20 text-2xl">載入中...</div>;
   }
@@ -270,7 +319,12 @@ export default function CalendarPage() {
                   </div>
                   {dayRegs.length > 0 && (
                     <div className="text-sm text-red-600 font-bold">
-                      {dayRegs.length} 人
+                      {dayRegs.filter(r => r.status === "approved").length} 人
+                    </div>
+                  )}
+                  {isAdmin && dayRegs.filter(r => r.status === "pending").length > 0 && (
+                    <div className="text-xs text-yellow-600 font-bold">
+                      ⏳{dayRegs.filter(r => r.status === "pending").length}
                     </div>
                   )}
                 </button>
@@ -295,6 +349,19 @@ export default function CalendarPage() {
                 )}
               </div>
 
+              {/* Conflict warnings */}
+              {isAdmin && (() => {
+                const warnings = getConflictWarnings(selectedRegs);
+                return warnings.length > 0 ? (
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
+                    <p className="text-lg font-bold text-yellow-700 mb-1">🚨 衝突提醒</p>
+                    {warnings.map((w, i) => (
+                      <p key={i} className="text-yellow-700">{w}</p>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
               {selectedRegs.length === 0 ? (
                 <p className="text-lg text-gray-500">暫無人報名</p>
               ) : (
@@ -302,14 +369,47 @@ export default function CalendarPage() {
                   {selectedRegs.map((reg) => (
                     <div
                       key={reg.id}
-                      className="border-2 border-gray-200 rounded-lg p-4"
+                      className={`border-2 rounded-lg p-4 ${
+                        reg.status === "pending"
+                          ? "border-yellow-300 bg-yellow-50"
+                          : reg.status === "rejected"
+                          ? "border-red-300 bg-red-50 opacity-60"
+                          : "border-gray-200"
+                      }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xl font-bold">{reg.user.name}</span>
                         <div className="flex items-center gap-2">
+                          <span className="text-xl font-bold">{reg.user.name}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-sm font-bold ${
+                            reg.status === "approved" ? "bg-green-100 text-green-700" :
+                            reg.status === "rejected" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {reg.status === "approved" ? "✅ 已批准" :
+                             reg.status === "rejected" ? "❌ 已拒絕" :
+                             "⏳ 待審批"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold">
                             {reg.timeSlot.label}
                           </span>
+                          {isAdmin && reg.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(reg.id)}
+                                className="bg-green-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-green-600 text-base"
+                              >
+                                ✅ 批准
+                              </button>
+                              <button
+                                onClick={() => handleReject(reg.id)}
+                                className="bg-orange-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-orange-600 text-base"
+                              >
+                                ❌ 拒絕
+                              </button>
+                            </>
+                          )}
                           {isAdmin && (
                             <>
                               <button

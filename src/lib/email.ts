@@ -26,3 +26,44 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     `,
   });
 }
+
+export async function sendApprovalEmail(email: string, userName: string, date: string, timeSlot: string, location: string) {
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+    to: email,
+    subject: "報名已批准！🀄 - 麻雀約局系統",
+    html: `
+      <div style="font-family: sans-serif; font-size: 20px; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #dc2626; font-size: 28px;">🀄 麻雀約局系統</h1>
+        <p>Hi ${userName}！</p>
+        <p style="font-size: 24px; font-weight: bold; color: #16a34a;">✅ 你的報名已獲批准！</p>
+        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 8px 0;">📅 <strong>日期：</strong>${date}</p>
+          <p style="margin: 8px 0;">⏰ <strong>時段：</strong>${timeSlot}</p>
+          <p style="margin: 8px 0;">📍 <strong>地點：</strong>${location}</p>
+        </div>
+        <p style="font-size: 22px;">準時嚟啦！到時見！🎉</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendRejectionEmail(email: string, userName: string, date: string, timeSlot: string) {
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+    to: email,
+    subject: "報名未獲批准 - 麻雀約局系統",
+    html: `
+      <div style="font-family: sans-serif; font-size: 20px; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #dc2626; font-size: 28px;">🀄 麻雀約局系統</h1>
+        <p>Hi ${userName}！</p>
+        <p style="font-size: 24px; font-weight: bold; color: #dc2626;">❌ 你的報名未獲批准</p>
+        <div style="background: #fef2f2; border: 2px solid #fca5a5; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 8px 0;">📅 <strong>日期：</strong>${date}</p>
+          <p style="margin: 8px 0;">⏰ <strong>時段：</strong>${timeSlot}</p>
+        </div>
+        <p>如有疑問，請聯絡管理員。</p>
+      </div>
+    `,
+  });
+}

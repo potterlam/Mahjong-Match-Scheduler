@@ -36,6 +36,7 @@ export default function HomePage() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [existingId, setExistingId] = useState<string | null>(null);
+  const [existingStatus, setExistingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -66,12 +67,14 @@ export default function HomePage() {
       .then((data) => {
         if (data && data.id) {
           setExistingId(data.id);
+          setExistingStatus(data.status || null);
           setSelectedSlot(data.timeSlotId);
           setSelectedLocation(data.locationId);
           setSelectedFoods(data.foods?.map((f: { foodOptionId: string }) => f.foodOptionId) || []);
           setNotes(data.notes || "");
         } else {
           setExistingId(null);
+          setExistingStatus(null);
           setSelectedSlot("");
           setSelectedFoods([]);
           setNotes("");
@@ -110,7 +113,8 @@ export default function HomePage() {
       setError(data.error);
     } else {
       setExistingId(data.id);
-      setSuccess(existingId ? "已更新報名！✅" : "報名成功！✅");
+      setExistingStatus("pending");
+      setSuccess(existingId ? "已更新報名，等待管理員審批！⏳" : "報名成功，等待管理員審批！⏳");
     }
   };
 
@@ -124,6 +128,7 @@ export default function HomePage() {
 
     if (res.ok) {
       setExistingId(null);
+      setExistingStatus(null);
       setSelectedSlot("");
       setSelectedFoods([]);
       setNotes("");
@@ -148,6 +153,18 @@ export default function HomePage() {
       <p className="text-xl mb-6">
         👋 {session.user.name}，今日想打麻雀嗎？
       </p>
+
+      {existingId && existingStatus && (
+        <div className={`p-4 rounded-lg mb-4 text-lg font-bold ${
+          existingStatus === "approved" ? "bg-green-100 text-green-700" :
+          existingStatus === "rejected" ? "bg-red-100 text-red-700" :
+          "bg-yellow-100 text-yellow-700"
+        }`}>
+          {existingStatus === "approved" && "✅ 你的報名已獲批准！"}
+          {existingStatus === "rejected" && "❌ 你的報名被拒絕了，請聯絡管理員"}
+          {existingStatus === "pending" && "⏳ 你的報名正在等待管理員審批..."}
+        </div>
+      )}
 
       {success && (
         <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-4 text-lg font-bold">

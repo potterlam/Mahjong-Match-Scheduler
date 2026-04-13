@@ -23,6 +23,8 @@ model User {
 
   registrations      Registration[]
   passwordResetTokens PasswordResetToken[]
+  conflictsAsA        UserConflict[] @relation("conflictsAsA")
+  conflictsAsB        UserConflict[] @relation("conflictsAsB")
 
   @@map("users")
 }
@@ -65,6 +67,7 @@ model Registration {
   date       DateTime @db.Date
   timeSlotId String   @map("time_slot_id")
   locationId String   @map("location_id")
+  status     String   @default("pending") // "pending", "approved", "rejected"
   notes      String   @default("")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -90,6 +93,19 @@ model RegistrationFood {
 
   @@unique([registrationId, foodOptionId])
   @@map("registration_foods")
+}
+
+model UserConflict {
+  id      String @id @default(cuid())
+  userAId String @map("user_a_id")
+  userBId String @map("user_b_id")
+  reason  String @default("")
+
+  userA User @relation("conflictsAsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("conflictsAsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@map("user_conflicts")
 }
 
 model PasswordResetToken {

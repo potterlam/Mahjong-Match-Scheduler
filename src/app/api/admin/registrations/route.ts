@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendApprovalEmail, sendRejectionEmail } from "@/lib/email";
+import { format } from "date-fns";
+import { zhTW } from "date-fns/locale";
 
 async function requireAdmin() {
   const session = await auth();
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/admin/registrations — admin edits any registration
+// PATCH /api/admin/registrations — admin edits or approves/rejects registration
 export async function PATCH(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) {
@@ -92,18 +95,54 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const { id, timeSlotId, locationId, foodIds, notes } = await req.json();
+    const { id, timeSlotId, locationId, foodIds, notes, status } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "缺少報名 ID" }, { status: 400 });
     }
 
-    const existing = await prisma.registration.findUnique({ where: { id } });
+    const existing = await prisma.registration.findUnique({
+      where: { id },
+      include: {
+        user: { select: { email: true, name: true } },
+        timeSlot: true,
+        location: true,
+      },
+    });
     if (!existing) {
       return NextResponse.json({ error: "找不到此報名" }, { status: 404 });
     }
 
-    // Delete old foods and update registration
+    // If status change (approve/reject), handle email notification
+    if (status && (status === "approved" || status === "rejected")) {
+      const updated = await prisma.registration.update({
+        where: { id },
+        data: { status },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          timeSlot: true,
+          location: true,
+          foods: { include: { foodOption: true } },
+        },
+      });
+
+      // Send email notification
+      try {
+        const dateStr = format(new Date(existing.date), "yyyy年M月d日（EEEE）", { locale: zhTW });
+        if (status === "approved") {
+          await sendApprovalEmail(existing.user.email, existing.user.name, dateStr, existing.timeSlot.label, existing.location.name);
+        } else {
+          await sendRejectionEmail(existing.user.email, existing.user.name, dateStr, existing.timeSlot.label);
+        }
+      } catch (emailErr) {
+        console.error("Failed to send email:", emailErr);
+        // Don't fail the request if email fails
+      }
+
+      return NextResponse.json(updated);
+    }
+
+    // Otherwise, edit registration fields
     await prisma.registrationFood.deleteMany({
       where: { registrationId: id },
     });

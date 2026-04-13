@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
-      // Update existing
+      // Update existing — reset to pending if changing
       await prisma.registrationFood.deleteMany({
         where: { registrationId: existing.id },
       });
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
           timeSlotId,
           locationId,
           notes: notes || "",
+          status: "pending",
           foods: {
             create: (foodIds || []).map((foodOptionId: string) => ({
               foodOptionId,
