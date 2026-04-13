@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fef7f0;
+  --foreground: #1a1a1a;
 }
 
 @theme inline {
@@ -12,15 +12,23 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  font-size: 18px;
+}
+
+button, a, input, select, textarea {
+  font-size: 18px;
+}
+
+button {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+input, select, textarea {
+  min-height: 48px;
+  padding: 8px 12px;
 }

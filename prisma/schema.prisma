@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  name          String
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  role          String    @default("user") // "admin" or "user"
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  registrations      Registration[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("users")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @default("")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  registrations Registration[]
+
+  @@map("locations")
+}
+
+model FoodOption {
+  id       String  @id @default(cuid())
+  name     String
+  isActive Boolean @default(true) @map("is_active")
+
+  registrationFoods RegistrationFood[]
+
+  @@map("food_options")
+}
+
+model TimeSlot {
+  id        String @id @default(cuid())
+  label     String
+  startTime String @map("start_time")
+  endTime   String @map("end_time")
+
+  registrations Registration[]
+
+  @@map("time_slots")
+}
+
+model Registration {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  date       DateTime @db.Date
+  timeSlotId String   @map("time_slot_id")
+  locationId String   @map("location_id")
+  notes      String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeSlot TimeSlot @relation(fields: [timeSlotId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  foods RegistrationFood[]
+
+  @@unique([userId, date, timeSlotId])
+  @@map("registrations")
+}
+
+model RegistrationFood {
+  id             String @id @default(cuid())
+  registrationId String @map("registration_id")
+  foodOptionId   String @map("food_option_id")
+  quantity       Int    @default(1)
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  foodOption   FoodOption   @relation(fields: [foodOptionId], references: [id])
+
+  @@unique([registrationId, foodOptionId])
+  @@map("registration_foods")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
