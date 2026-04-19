@@ -281,6 +281,24 @@ export default function CalendarPage() {
   const selectedRegs = selectedDate ? getRegistrationsForDate(selectedDate) : [];
   const showModal = editingReg || addingNew;
 
+  // Get approved event responder names (for highlighting in user selector)
+  const approvedResponderNames = new Set(
+    calendarEvents.flatMap((ev) =>
+      ev.responses
+        .filter((r) => r.joining && r.status === "approved")
+        .map((r) => r.name.trim().toLowerCase())
+    )
+  );
+
+  // Sort users: approved event responders first
+  const sortedUsers = [...users].sort((a, b) => {
+    const aMatch = approvedResponderNames.has(a.name.trim().toLowerCase());
+    const bMatch = approvedResponderNames.has(b.name.trim().toLowerCase());
+    if (aMatch && !bMatch) return -1;
+    if (!aMatch && bMatch) return 1;
+    return 0;
+  });
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-red-700 mb-6">📅 約局日曆</h1>
@@ -471,7 +489,7 @@ export default function CalendarPage() {
               {/* Events section */}
               {hasAnyEvents && (
                 <div className="mt-6 border-t-2 border-gray-200 pt-4">
-                  <h3 className="text-xl font-bold mb-3">🎉 活動調查</h3>
+                  <h3 className="text-xl font-bold mb-3">🎉 參加意向</h3>
                   <div className="space-y-3">
                     {calendarEvents.map((ev) => {
                       const approvedCount = ev.responses.filter((r) => r.joining && r.status === "approved").length;
@@ -541,12 +559,18 @@ export default function CalendarPage() {
                     className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg focus:border-red-500 focus:outline-none"
                   >
                     <option value="">-- 選擇用戶 --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}（{u.email}）
-                      </option>
-                    ))}
+                    {sortedUsers.map((u) => {
+                      const isResponder = approvedResponderNames.has(u.name.trim().toLowerCase());
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {isResponder ? "🎉 " : ""}{u.name}（{u.email}）{isResponder ? " — 已確認參加意向" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {approvedResponderNames.size > 0 && (
+                    <p className="text-sm text-purple-600 mt-1">🎉 = 已批准的參加意向回覆者</p>
+                  )}
                 </div>
               )}
 

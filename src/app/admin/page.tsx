@@ -285,7 +285,7 @@ export default function AdminPage() {
   };
 
   const deleteEvent = async (id: string) => {
-    if (!confirm("確定要刪除此活動嗎？所有回覆也會被刪除。")) return;
+    if (!confirm("確定要刪除此參加意向嗎？所有回覆也會被刪除。")) return;
     const res = await fetch(`/api/admin/events?id=${id}`, { method: "DELETE" });
     if (res.ok) {
       setEvents((prev) => prev.filter((e) => e.id !== id));
@@ -343,7 +343,7 @@ export default function AdminPage() {
           { key: "users" as const, label: "👥 用戶管理" },
           { key: "foods" as const, label: "🍜 食物管理" },
           { key: "timeslots" as const, label: "⏰ 時段管理" },
-          { key: "events" as const, label: "🎉 活動調查" },
+          { key: "events" as const, label: "🎉 參加意向" },
           { key: "conflicts" as const, label: "🚫 衝突管理" },
         ].map((t) => (
           <button
@@ -685,10 +685,10 @@ export default function AdminPage() {
       {tab === "events" && (
         <div>
           <div className="bg-white rounded-lg shadow p-6 border-2 border-gray-200 mb-6">
-            <h2 className="text-xl font-bold mb-4">➕ 建立新活動調查</h2>
+            <h2 className="text-xl font-bold mb-4">➕ 建立新參加意向</h2>
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-lg font-bold mb-1">活動名稱 *</label>
+                <label className="block text-lg font-bold mb-1">意向名稱 *</label>
                 <input
                   type="text"
                   value={newEventTitle}
@@ -704,7 +704,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewEventDesc(e.target.value)}
                   className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg"
                   rows={2}
-                  placeholder="活動詳細資訊"
+                  placeholder="詳細資訊"
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -745,12 +745,12 @@ export default function AdminPage() {
               disabled={!newEventTitle.trim()}
               className="bg-green-600 text-white px-6 py-3 rounded-lg text-lg font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              🎉 建立活動
+              🎉 建立意向
             </button>
           </div>
 
           {events.length === 0 ? (
-            <p className="text-lg text-gray-500">目前沒有活動</p>
+            <p className="text-lg text-gray-500">目前沒有參加意向</p>
           ) : (
             <div className="space-y-4">
               {events.map((ev) => {
