@@ -85,6 +85,7 @@ export default function AdminPage() {
   const [newEventDate, setNewEventDate] = useState("");
   const [newEventTime, setNewEventTime] = useState("");
   const [newEventLocation, setNewEventLocation] = useState("");
+  const [whatsappMsg, setWhatsappMsg] = useState<{ name: string; msg: string } | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -298,6 +299,10 @@ export default function AdminPage() {
       body: JSON.stringify({ responseId, status: newStatus }),
     });
     if (res.ok) {
+      // Find the response and event for generating WhatsApp message
+      const ev = events.find((e) => e.id === eventId);
+      const resp = ev?.responses.find((r) => r.id === responseId);
+
       setEvents((prev) =>
         prev.map((e) =>
           e.id === eventId
@@ -305,6 +310,19 @@ export default function AdminPage() {
             : e
         )
       );
+
+      // If no email, generate a WhatsApp-friendly message for admin to copy
+      if (resp && !resp.email && ev) {
+        const statusText = newStatus === "approved" ? "已批准 ✅" : "已拒絕 ❌";
+        const msg = newStatus === "approved"
+          ? `Hi ${resp.name}，你報名參加「${ev.title}」已獲批准 ✅\n\n` +
+            (ev.date ? `📅 日期：${ev.date}\n` : "") +
+            (ev.time ? `⏰ 時間：${ev.time}\n` : "") +
+            (ev.location ? `📍 地點：${ev.location}\n` : "") +
+            `\n期待你嘅到來！🀄`
+          : `Hi ${resp.name}，好抱歉通知你，你報名參加「${ev.title}」未能獲得批准 ❌\n\n如有疑問可以直接聯絡我哋。`;
+        setWhatsappMsg({ name: resp.name, msg });
+      }
     }
   };
 
@@ -798,6 +816,7 @@ export default function AdminPage() {
                             <div>
                               <span className="font-bold text-lg">{r.name}</span> {r.joining ? "✅" : "❌"}
                               {r.email && <span className="text-gray-500 text-sm ml-2">({r.email})</span>}
+                              {!r.email && r.joining && <span className="text-orange-500 text-sm ml-2">（無電郵）</span>}
                               {r.notes && <span className="text-gray-500 ml-2">— {r.notes}</span>}
                               {r.joining && (
                                 <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -834,6 +853,41 @@ export default function AdminPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* WhatsApp Message Modal */}
+      {whatsappMsg && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold mb-2">📱 WhatsApp 通知訊息</h3>
+            <p className="text-gray-600 mb-3">
+              {whatsappMsg.name} 無留電郵，請複製以下訊息透過 WhatsApp 私訊通知：
+            </p>
+            <textarea
+              readOnly
+              value={whatsappMsg.msg.replace(/\\n/g, "\n")}
+              className="w-full border-2 border-green-300 rounded-lg p-3 text-base bg-green-50 mb-4"
+              rows={6}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(whatsappMsg.msg.replace(/\\n/g, "\n"));
+                  alert("已複製訊息！");
+                }}
+                className="flex-1 bg-green-600 text-white py-3 rounded-xl text-lg font-bold hover:bg-green-700"
+              >
+                📋 複製訊息
+              </button>
+              <button
+                onClick={() => setWhatsappMsg(null)}
+                className="bg-gray-300 text-gray-700 py-3 px-6 rounded-xl text-lg font-bold hover:bg-gray-400"
+              >
+                關閉
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
