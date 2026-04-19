@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendApprovalEmail, sendRejectionEmail } from "@/lib/email";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
+import bcrypt from "bcryptjs";
 
 async function requireAdmin() {
   const session = await auth();
@@ -48,20 +49,54 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { userId, date, timeSlotId, locationId, foodIds, notes } = await req.json();
+    const { userId, date, timeSlotId, locationId, foodIds, notes, responderName, responderEmail } = await req.json();
 
-    if (!userId || !date || !timeSlotId || !locationId) {
+    if (!date || !timeSlotId || !locationId) {
       return NextResponse.json({ error: "請填寫所有必要欄位" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    let finalUserId = userId;
+
+    // If no userId but has responderName, auto-create a user account
+    if (!finalUserId && responderName) {
+      const name = responderName.trim();
+      // Generate a unique username from name
+      const baseUsername = name.toLowerCase().replace(/\s+/g, "");
+      let username = baseUsername;
+      let suffix = 1;
+      while (await prisma.user.findUnique({ where: { username } })) {
+        username = `${baseUsername}${suffix}`;
+        suffix++;
+      }
+      // Use responder email or generate a placeholder
+      const email = responderEmail?.trim() || `${username}@guest.local`;
+      // Check if email already exists — if so, use that user
+      const existingByEmail = email !== `${username}@guest.local`
+        ? await prisma.user.findUnique({ where: { email } })
+        : null;
+      if (existingByEmail) {
+        finalUserId = existingByEmail.id;
+      } else {
+        const passwordHash = await bcrypt.hash(`welcome${Date.now()}`, 10);
+        const newUser = await prisma.user.create({
+          data: { username, name, email, passwordHash },
+        });
+        finalUserId = newUser.id;
+      }
+    }
+
+    if (!finalUserId) {
+      return NextResponse.json({ error: "請選擇用戶" }, { status: 400 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: finalUserId } });
     if (!user) {
       return NextResponse.json({ error: "找不到此用戶" }, { status: 404 });
     }
 
     const registration = await prisma.registration.create({
       data: {
-        userId,
+        userId: finalUserId,
         date: new Date(date),
         timeSlotId,
         locationId,

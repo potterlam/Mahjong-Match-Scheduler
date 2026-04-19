@@ -31,7 +31,7 @@ interface CalendarEvent {
   date: string;
   time: string;
   location: string;
-  responses: { id: string; name: string; joining: boolean; status: string }[];
+  responses: { id: string; name: string; email: string; joining: boolean; status: string }[];
 }
 
 export default function CalendarPage() {
@@ -171,17 +171,28 @@ export default function CalendarPage() {
     setFormSaving(true);
     setFormError("");
 
+    // Check if selected value is an event responder (not an existing user)
+    const isNewResponder = formUserId.startsWith("new::");
+    const body: Record<string, unknown> = {
+      date: selectedDate,
+      timeSlotId: formSlot,
+      locationId: formLocation,
+      foodIds: formFoods,
+      notes: formNotes,
+    };
+
+    if (isNewResponder) {
+      const parts = formUserId.split("::");
+      body.responderName = parts[1];
+      body.responderEmail = parts[2] || "";
+    } else {
+      body.userId = formUserId;
+    }
+
     const res = await fetch("/api/admin/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: formUserId,
-        date: selectedDate,
-        timeSlotId: formSlot,
-        locationId: formLocation,
-        foodIds: formFoods,
-        notes: formNotes,
-      }),
+      body: JSON.stringify(body),
     });
 
     setFormSaving(false);
@@ -289,6 +300,22 @@ export default function CalendarPage() {
         .map((r) => r.name.trim().toLowerCase())
     )
   );
+
+  // Get approved responders who DON'T match any existing user (by name)
+  const existingUserNames = new Set(users.map((u) => u.name.trim().toLowerCase()));
+  const newResponders: { name: string; email: string }[] = [];
+  const seenNames = new Set<string>();
+  for (const ev of calendarEvents) {
+    for (const r of ev.responses) {
+      if (r.joining && r.status === "approved") {
+        const key = r.name.trim().toLowerCase();
+        if (!existingUserNames.has(key) && !seenNames.has(key)) {
+          seenNames.add(key);
+          newResponders.push({ name: r.name.trim(), email: r.email || "" });
+        }
+      }
+    }
+  }
 
   // Sort users: approved event responders first
   const sortedUsers = [...users].sort((a, b) => {
@@ -559,16 +586,27 @@ export default function CalendarPage() {
                     className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg focus:border-red-500 focus:outline-none"
                   >
                     <option value="">-- 選擇用戶 --</option>
-                    {sortedUsers.map((u) => {
-                      const isResponder = approvedResponderNames.has(u.name.trim().toLowerCase());
-                      return (
-                        <option key={u.id} value={u.id}>
-                          {isResponder ? "🎉 " : ""}{u.name}（{u.email}）{isResponder ? " — 已確認參加意向" : ""}
-                        </option>
-                      );
-                    })}
+                    {newResponders.length > 0 && (
+                      <optgroup label="🎉 參加意向（未有帳號，將自動建立）">
+                        {newResponders.map((r) => (
+                          <option key={`new::${r.name}`} value={`new::${r.name}::${r.email}`}>
+                            🎉 {r.name}{r.email ? `（${r.email}）` : ""} — 已確認參加意向
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="📋 已註冊用戶">
+                      {sortedUsers.map((u) => {
+                        const isResponder = approvedResponderNames.has(u.name.trim().toLowerCase());
+                        return (
+                          <option key={u.id} value={u.id}>
+                            {isResponder ? "🎉 " : ""}{u.name}（{u.email}）{isResponder ? " — 已確認參加意向" : ""}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   </select>
-                  {approvedResponderNames.size > 0 && (
+                  {(newResponders.length > 0 || approvedResponderNames.size > 0) && (
                     <p className="text-sm text-purple-600 mt-1">🎉 = 已批准的參加意向回覆者</p>
                   )}
                 </div>
