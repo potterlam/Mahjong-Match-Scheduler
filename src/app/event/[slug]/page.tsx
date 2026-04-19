@@ -5,7 +5,9 @@ import { useState, useEffect, use } from "react";
 interface EventResponse {
   id: string;
   name: string;
+  email: string;
   joining: boolean;
+  status: string;
   notes: string;
   createdAt: string;
 }
@@ -27,6 +29,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [joining, setJoining] = useState<boolean | null>(null);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +62,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     const res = await fetch("/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug, name: name.trim(), joining, notes }),
+      body: JSON.stringify({ slug, name: name.trim(), joining, notes, email: email.trim() }),
     });
 
     const data = await res.json();
@@ -68,12 +71,13 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     if (!res.ok) {
       setError(data.error || "提交失敗");
     } else {
-      setSuccess(joining ? "已回覆：參加 ✅" : "已回覆：不參加 ❌");
+      setSuccess(joining ? "已回覆：參加 ✅（等待管理員審批）" : "已回覆：不參加 ❌");
       // Refresh event data
       const refreshRes = await fetch(`/api/events?slug=${slug}`);
       const refreshData = await refreshRes.json();
       if (!refreshData.error) setEvent(refreshData);
       setName("");
+      setEmail("");
       setJoining(null);
       setNotes("");
     }
@@ -148,6 +152,17 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
             </div>
 
             <div>
+              <label className="block text-xl font-bold mb-2">電郵（選填，用於接收審批通知）</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg focus:border-red-500 focus:outline-none"
+                placeholder="example@email.com"
+              />
+            </div>
+
+            <div>
               <label className="block text-xl font-bold mb-3">是否參加？</label>
               <div className="grid grid-cols-2 gap-4">
                 <button
@@ -212,19 +227,34 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
               {event.responses.map((r) => (
                 <div
                   key={r.id}
-                  className={`p-4 rounded-lg border-2 flex justify-between items-center ${
+                  className={`p-4 rounded-lg border-2 ${
                     r.joining
                       ? "border-green-200 bg-green-50"
                       : "border-red-200 bg-red-50"
                   }`}
                 >
-                  <div>
-                    <span className="text-xl font-bold">{r.name}</span>
-                    {r.notes && (
-                      <span className="text-gray-500 ml-2">— {r.notes}</span>
-                    )}
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-xl font-bold">{r.name}</span>
+                      {r.notes && (
+                        <span className="text-gray-500 ml-2">— {r.notes}</span>
+                      )}
+                    </div>
+                    <span className="text-2xl">{r.joining ? "✅" : "❌"}</span>
                   </div>
-                  <span className="text-2xl">{r.joining ? "✅" : "❌"}</span>
+                  {r.joining && (
+                    <div className="mt-2">
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${
+                        r.status === "approved"
+                          ? "bg-green-200 text-green-800"
+                          : r.status === "rejected"
+                          ? "bg-red-200 text-red-800"
+                          : "bg-yellow-200 text-yellow-800"
+                      }`}>
+                        {r.status === "approved" ? "✅ 已批准" : r.status === "rejected" ? "❌ 已拒絕" : "⏳ 等待審批"}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

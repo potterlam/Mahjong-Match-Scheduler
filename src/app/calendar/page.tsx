@@ -25,6 +25,15 @@ interface FoodOption { id: string; name: string }
 interface UserOption { id: string; name: string; email: string }
 interface ConflictPair { id: string; userA: { id: string; name: string }; userB: { id: string; name: string }; reason: string }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  responses: { id: string; name: string; joining: boolean; status: string }[];
+}
+
 export default function CalendarPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -32,6 +41,7 @@ export default function CalendarPage() {
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [registrations, setRegistrations] = useState<CalendarRegistration[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -80,7 +90,8 @@ export default function CalendarPage() {
     const month = format(currentMonth, "yyyy-MM");
     const res = await fetch(`/api/calendar?month=${month}`);
     const data = await res.json();
-    setRegistrations(Array.isArray(data) ? data : []);
+    setRegistrations(Array.isArray(data.registrations) ? data.registrations : []);
+    setCalendarEvents(Array.isArray(data.events) ? data.events : []);
     setLoading(false);
   }, [currentMonth]);
 
@@ -255,6 +266,17 @@ export default function CalendarPage() {
       (r) => format(new Date(r.date), "yyyy-MM-dd") === dateStr
     );
   };
+
+  const getEventsForDate = (dateStr: string) => {
+    return calendarEvents.filter((ev) => {
+      // Match events whose date text contains this date
+      // Events use free-form date text, so we try to show all on the calendar
+      return ev.date && ev.date.includes(dateStr);
+    });
+  };
+
+  // Check all events (since date is free text, show globally in date detail if any exist)
+  const hasAnyEvents = calendarEvents.length > 0;
 
   const selectedRegs = selectedDate ? getRegistrationsForDate(selectedDate) : [];
   const showModal = editingReg || addingNew;
@@ -443,6 +465,50 @@ export default function CalendarPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Events section */}
+              {hasAnyEvents && (
+                <div className="mt-6 border-t-2 border-gray-200 pt-4">
+                  <h3 className="text-xl font-bold mb-3">🎉 活動調查</h3>
+                  <div className="space-y-3">
+                    {calendarEvents.map((ev) => {
+                      const approvedCount = ev.responses.filter((r) => r.joining && r.status === "approved").length;
+                      const pendingCount = ev.responses.filter((r) => r.joining && r.status === "pending").length;
+                      return (
+                        <div key={ev.id} className="border-2 border-purple-200 bg-purple-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="text-lg font-bold text-purple-700">{ev.title}</h4>
+                              <div className="text-gray-600">
+                                {ev.date && <span>📅 {ev.date} </span>}
+                                {ev.time && <span>⏰ {ev.time} </span>}
+                                {ev.location && <span>📍 {ev.location}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-green-700 font-bold">✅ {approvedCount} 已批准</span>
+                              {pendingCount > 0 && (
+                                <span className="text-yellow-600 font-bold ml-2">⏳ {pendingCount} 待審</span>
+                              )}
+                            </div>
+                          </div>
+                          {ev.responses.filter((r) => r.joining && r.status === "approved").length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {ev.responses
+                                .filter((r) => r.joining && r.status === "approved")
+                                .map((r) => (
+                                  <span key={r.id} className="bg-green-100 text-green-800 px-2 py-1 rounded-lg text-sm font-bold">
+                                    {r.name}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

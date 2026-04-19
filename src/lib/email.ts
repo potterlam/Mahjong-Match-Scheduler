@@ -67,3 +67,40 @@ export async function sendRejectionEmail(email: string, userName: string, date: 
     `,
   });
 }
+
+export async function sendEventApprovalEmail(email: string, name: string, eventTitle: string, date: string, time: string, location: string) {
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+    to: email,
+    subject: `活動報名已批准！🎉 - ${eventTitle}`,
+    html: `
+      <div style="font-family: sans-serif; font-size: 20px; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #dc2626; font-size: 28px;">🀄 麻雀約局系統</h1>
+        <p>Hi ${name}！</p>
+        <p style="font-size: 24px; font-weight: bold; color: #16a34a;">✅ 你的「${eventTitle}」報名已獲批准！</p>
+        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          ${date ? `<p style="margin: 8px 0;">📅 <strong>日期：</strong>${date}</p>` : ""}
+          ${time ? `<p style="margin: 8px 0;">⏰ <strong>時間：</strong>${time}</p>` : ""}
+          ${location ? `<p style="margin: 8px 0;">📍 <strong>地點：</strong>${location}</p>` : ""}
+        </div>
+        <p style="font-size: 22px;">到時見！🎉</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendEventRejectionEmail(email: string, name: string, eventTitle: string) {
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+    to: email,
+    subject: `活動報名未獲批准 - ${eventTitle}`,
+    html: `
+      <div style="font-family: sans-serif; font-size: 20px; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #dc2626; font-size: 28px;">🀄 麻雀約局系統</h1>
+        <p>Hi ${name}！</p>
+        <p style="font-size: 24px; font-weight: bold; color: #dc2626;">❌ 你的「${eventTitle}」報名未獲批准</p>
+        <p>如有疑問，請聯絡管理員。</p>
+      </div>
+    `,
+  });
+}

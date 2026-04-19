@@ -35,5 +35,14 @@ export async function GET(req: NextRequest) {
     orderBy: [{ date: "asc" }, { timeSlotId: "asc" }],
   });
 
-  return NextResponse.json(registrations);
+  // Also return active events
+  const events = await prisma.event.findMany({
+    where: { isActive: true },
+    include: {
+      responses: { orderBy: { createdAt: "asc" } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json({ registrations, events });
 }

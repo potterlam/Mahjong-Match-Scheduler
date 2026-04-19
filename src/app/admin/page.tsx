@@ -53,7 +53,7 @@ interface EventItem {
   time: string;
   location: string;
   isActive: boolean;
-  responses: { id: string; name: string; joining: boolean; notes: string }[];
+  responses: { id: string; name: string; email: string; joining: boolean; status: string; notes: string }[];
 }
 
 export default function AdminPage() {
@@ -288,6 +288,23 @@ export default function AdminPage() {
     const res = await fetch(`/api/admin/events?id=${id}`, { method: "DELETE" });
     if (res.ok) {
       setEvents((prev) => prev.filter((e) => e.id !== id));
+    }
+  };
+
+  const updateResponseStatus = async (eventId: string, responseId: string, newStatus: string) => {
+    const res = await fetch("/api/admin/events", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responseId, status: newStatus }),
+    });
+    if (res.ok) {
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? { ...e, responses: e.responses.map((r) => r.id === responseId ? { ...r, status: newStatus } : r) }
+            : e
+        )
+      );
     }
   };
 
@@ -775,11 +792,39 @@ export default function AdminPage() {
                       📊 ✅ {joinCount} 人參加 · ❌ {declineCount} 人不參加
                     </div>
                     {ev.responses.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         {ev.responses.map((r) => (
-                          <div key={r.id} className={`p-2 rounded border text-sm ${r.joining ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-                            <span className="font-bold">{r.name}</span> {r.joining ? "✅" : "❌"}
-                            {r.notes && <span className="text-gray-500"> — {r.notes}</span>}
+                          <div key={r.id} className={`p-3 rounded border flex justify-between items-center ${r.joining ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                            <div>
+                              <span className="font-bold text-lg">{r.name}</span> {r.joining ? "✅" : "❌"}
+                              {r.email && <span className="text-gray-500 text-sm ml-2">({r.email})</span>}
+                              {r.notes && <span className="text-gray-500 ml-2">— {r.notes}</span>}
+                              {r.joining && (
+                                <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  r.status === "approved" ? "bg-green-200 text-green-800"
+                                    : r.status === "rejected" ? "bg-red-200 text-red-800"
+                                    : "bg-yellow-200 text-yellow-800"
+                                }`}>
+                                  {r.status === "approved" ? "已批准" : r.status === "rejected" ? "已拒絕" : "等待審批"}
+                                </span>
+                              )}
+                            </div>
+                            {r.joining && r.status === "pending" && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => updateResponseStatus(ev.id, r.id, "approved")}
+                                  className="bg-green-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-green-700 text-sm"
+                                >
+                                  ✅ 批准
+                                </button>
+                                <button
+                                  onClick={() => updateResponseStatus(ev.id, r.id, "rejected")}
+                                  className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-red-600 text-sm"
+                                >
+                                  ❌ 拒絕
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

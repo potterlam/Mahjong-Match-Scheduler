@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
 // POST submit response (public - no auth)
 export async function POST(req: NextRequest) {
-  const { slug, name, joining, notes } = await req.json();
+  const { slug, name, joining, notes, email } = await req.json();
 
   if (!slug || !name?.trim()) {
     return NextResponse.json({ error: "請輸入你的名字" }, { status: 400 });
@@ -35,14 +35,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "找不到此活動或已關閉" }, { status: 404 });
   }
 
-  // Upsert: if same name already responded, update
+  // Upsert: if same name already responded, update (reset status to pending)
   const response = await prisma.eventResponse.upsert({
     where: { eventId_name: { eventId: event.id, name: name.trim() } },
-    update: { joining, notes: notes || "" },
+    update: { joining, notes: notes || "", email: email || "", status: "pending" },
     create: {
       eventId: event.id,
       name: name.trim(),
+      email: email || "",
       joining,
+      status: "pending",
       notes: notes || "",
     },
   });

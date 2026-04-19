@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendEventApprovalEmail, sendEventRejectionEmail } from "@/lib/email";
 import crypto from "crypto";
 
 async function requireAdmin() {
@@ -47,12 +48,49 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(event);
 }
 
-// PATCH update event (admin only)
+// PATCH update event or approve/reject response (admin only)
 export async function PATCH(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "無權限" }, { status: 403 });
 
-  const { id, title, description, date, time, location, isActive } = await req.json();
+  const body = await req.json();
+
+  // If responseId is present, this is an approve/reject action on a response
+  if (body.responseId) {
+    const { responseId, status } = body;
+    if (!status || (status !== "approved" && status !== "rejected")) {
+      return NextResponse.json({ error: "無效狀態" }, { status: 400 });
+    }
+
+    const response = await prisma.eventResponse.findUnique({
+      where: { id: responseId },
+      include: { event: true },
+    });
+    if (!response) return NextResponse.json({ error: "找不到此回覆" }, { status: 404 });
+
+    const updated = await prisma.eventResponse.update({
+      where: { id: responseId },
+      data: { status },
+    });
+
+    // Send email notification if email is provided
+    if (response.email) {
+      try {
+        if (status === "approved") {
+          await sendEventApprovalEmail(response.email, response.name, response.event.title, response.event.date, response.event.time, response.event.location);
+        } else {
+          await sendEventRejectionEmail(response.email, response.name, response.event.title);
+        }
+      } catch (emailErr) {
+        console.error("Failed to send event email:", emailErr);
+      }
+    }
+
+    return NextResponse.json(updated);
+  }
+
+  // Otherwise, update the event itself
+  const { id, title, description, date, time, location, isActive } = body;
   if (!id) return NextResponse.json({ error: "缺少 ID" }, { status: 400 });
 
   const data: Record<string, unknown> = {};

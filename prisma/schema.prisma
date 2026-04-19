@@ -140,7 +140,9 @@ model EventResponse {
   id        String   @id @default(cuid())
   eventId   String   @map("event_id")
   name      String
+  email     String   @default("")
   joining   Boolean
+  status    String   @default("pending") // "pending", "approved", "rejected"
   notes     String   @default("")
   createdAt DateTime @default(now()) @map("created_at")
 
